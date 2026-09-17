@@ -1,6 +1,9 @@
 package com.anderson.banking.service
 
 import com.anderson.banking.dto.request.CreateAccountRequest
+import com.anderson.banking.dto.response.PageResponse
+import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Sort
 import com.anderson.banking.dto.response.AccountResponse
 import com.anderson.banking.entity.AccountEntity
 import com.anderson.banking.repository.AccountRepository
@@ -46,4 +49,44 @@ class AccountService(
         balance = balance,
         currency = currency
     )
+
+    @Transactional(readOnly = true)
+    fun search(
+        name: String?,
+        page: Int,
+        size: Int
+    ): PageResponse<AccountResponse> {
+        if (page < 0 || size !in 1..100) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "page deve ser maior ou igual a 0 e size deve estar entre 1 e 100"
+            )
+        }
+
+        val pageable = PageRequest.of(
+            page,
+            size,
+            Sort.by(Sort.Direction.ASC, "id")
+        )
+
+        val normalizedName = name?.trim().orEmpty()
+
+        val result = if (normalizedName.isBlank()) {
+            repository.findAll(pageable)
+        } else {
+            repository.findByHolderNameContainingIgnoreCase(
+                normalizedName,
+                pageable
+            )
+        }
+
+        return PageResponse(
+            content = result.content.map { it.toResponse() },
+            page = result.number,
+            size = result.size,
+            totalElements = result.totalElements,
+            totalPages = result.totalPages,
+            last = result.isLast
+        )
+    }
 }
